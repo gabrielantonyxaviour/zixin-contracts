@@ -16,6 +16,7 @@ contract ZixinPolygon is ERC721, ERC721URIStorage, IDapp, FunctionsClient, Confi
 
     struct TransferParams {
         uint256 zixinId;
+        bytes metadataUrl;
         bytes recipient;
     }
 
@@ -30,14 +31,11 @@ contract ZixinPolygon is ERC721, ERC721URIStorage, IDapp, FunctionsClient, Confi
     // Zixin Variables
     Counters.Counter private _zixinIds;
     Counters.Counter private _tokenIds;
-    mapping(uint256 => string) public authToSourceCode;
-    mapping(uint256 => mapping(address => bool)) public zixinClaimed;
+    mapping(uint256 => string) public zixinToSourceCode;
+    mapping(uint256 => mapping(address => uint256)) public zixinToTokenId;
 
     // Chainlink Variables
     mapping(bytes32 => ZixinClaimRequest) public requestRegistry;
-    bytes32 public latestRequestId;
-    bytes public latestResponse;
-    bytes public latestError;
 
     // Events
     event ErrorOccured(bytes32 indexed requestId, address claimer, bytes error);
@@ -59,19 +57,20 @@ contract ZixinPolygon is ERC721, ERC721URIStorage, IDapp, FunctionsClient, Confi
         string memory twitterSourceCode
     ) FunctionsClient(oracle) ConfirmedOwner(msg.sender) ERC721("ZixinPolygon", "ZXP") {
         gatewayContract = IGateway(gatewayAddress);
-        authToSourceCode[0] = googleSourceCode;
-        authToSourceCode[1] = githubSourceCode;
-        authToSourceCode[2] = twitterSourceCode;
+        zixinToSourceCode[0] = googleSourceCode;
+        zixinToSourceCode[1] = githubSourceCode;
+        zixinToSourceCode[2] = twitterSourceCode;
         _zixinIds.increment();
         _zixinIds.increment();
         _zixinIds.increment();
+        _tokenIds.increment();
         gatewayContract.setDappMetadata(feePayerAddress);
     }
 
     function createZixin(string memory sourceCode) external onlyOwner returns (uint256 _zixinId) {
         _zixinId = _zixinIds.current();
         _zixinIds.increment();
-        authToSourceCode[_zixinId] = sourceCode;
+        zixinToSourceCode[_zixinId] = sourceCode;
     }
 
     function claimZixin(
@@ -82,9 +81,9 @@ contract ZixinPolygon is ERC721, ERC721URIStorage, IDapp, FunctionsClient, Confi
         uint32 gasLimit
     ) external payable {
         require(zixinId < _zixinIds.current(), "Zixin does not exist");
-        require(zixinClaimed[zixinId][msg.sender] == false, "Zixin already claimed");
+        require(zixinToTokenId[zixinId][msg.sender] == 0, "Zixin already claimed");
         bytes32 requestId = _executeRequest(
-            authToSourceCode[zixinId],
+            zixinToSourceCode[zixinId],
             secrets,
             args,
             subscriptionId,
@@ -126,7 +125,7 @@ contract ZixinPolygon is ERC721, ERC721URIStorage, IDapp, FunctionsClient, Confi
                     _safeMint(requestRegistry[requestId].claimer, _tokenId);
                     _setTokenURI(_tokenId, metadataUrl);
                     _tokenIds.increment();
-                    zixinClaimed[requestRegistry[requestId].zixinId][msg.sender] = true;
+                    zixinToTokenId[requestRegistry[requestId].zixinId][msg.sender] = _tokenId;
                     emit ZixinClaimed(
                         requestId,
                         requestRegistry[requestId].zixinId,
@@ -179,7 +178,10 @@ contract ZixinPolygon is ERC721, ERC721URIStorage, IDapp, FunctionsClient, Confi
             "contract on dest not set"
         );
         require(transferParams.zixinId < _zixinIds.current(), "Zixin does not exist");
-        require(zixinClaimed[transferParams.zixinId][msg.sender] == true, "Zixin unavailable");
+        require(zixinToTokenId[transferParams.zixinId][msg.sender] != 0, "Zixin unavailable");
+        transferParams.metadataUrl = bytes(
+            tokenURI(zixinToTokenId[transferParams.zixinId][msg.sender])
+        );
         bytes memory packet = abi.encode(transferParams);
         bytes memory requestPacket = abi.encode(ourContractOnChains[destChainId], packet);
 

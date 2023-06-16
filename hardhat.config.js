@@ -14,10 +14,16 @@ require("dotenv").config()
 // const TAIKO_RPC_URL = process.env.TAIKO_RPC_URL
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x"
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY
+const REPORT_GAS = process.env.REPORT_GAS?.toLowerCase() === "true" ? true : false
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY
 // Your API key for Etherscan, obtain one at https://etherscan.io/
 // const REPORT_GAS = process.env.REPORT_GAS || false
-
+const SOLC_SETTINGS = {
+    optimizer: {
+        enabled: true,
+        runs: 1_000,
+    },
+}
 module.exports = {
     defaultNetwork: "hardhat",
     networks: {
@@ -122,13 +128,20 @@ module.exports = {
     solidity: {
         compilers: [
             {
-                version: "0.8.12",
-                settings: {
-                    optimizer: {
-                        enabled: true,
-                        runs: 1000,
-                    },
-                },
+                version: "0.8.7",
+                settings: SOLC_SETTINGS,
+            },
+            {
+                version: "0.7.0",
+                settings: SOLC_SETTINGS,
+            },
+            {
+                version: "0.6.6",
+                settings: SOLC_SETTINGS,
+            },
+            {
+                version: "0.4.24",
+                settings: SOLC_SETTINGS,
             },
         ],
     },
